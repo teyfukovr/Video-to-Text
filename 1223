@@ -1,0 +1,431 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Download,
+  Languages,
+  Loader2,
+  Upload,
+  Copy,
+  Edit,
+  FileVideo2,
+  Check,
+  FileText,
+  Calendar,
+} from "lucide-react";
+import { downloadBlob, generateFile } from "./fileGenerators";
+import "./App.css";
+
+const EXPORT_OPTIONS = [
+  { value: "txt", label: ".txt" },
+  { value: "pdf", label: ".pdf" },
+  { value: "docx", label: ".docx" },
+  { value: "doc", label: ".doc" },
+];
+
+const SUPPORTED_VIDEO_FORMATS = [
+  "mp4",
+  "mov",
+  "avi",
+  "mkv",
+  "webm",
+];
+const FEATURE_ITEMS = [
+  { icon: FileVideo2, text: "Поддерживает 12 форматов" },
+  { icon: Languages, text: "Поддерживает 98 языков" },
+  { icon: Upload, text: "Экспорт\u00A0в\u00A03 форматах" },
+];
+
+function App() {
+  const fileInputRef = useRef(null);
+  const timersRef = useRef([]);
+  const modalRef = useRef(null);
+  const formData = new FormData();
+  let response;
+
+  const [activeTab, setActiveTab] = useState("file");
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [videoLink, setVideoLink] = useState("");
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [resultText, setResultText] = useState("");
+
+  const [fileFormat, setFileFormat] = useState("txt");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showTutorial, setShowTutorial] = useState(false)
+  const [isCopied, setIsCopied] = useState(false);
+
+  const clearAllTimers = () => {
+    timersRef.current.forEach((timerId) => clearTimeout(timerId));
+    timersRef.current = [];
+  };
+
+  useEffect(() => {
+    return () => {
+      clearAllTimers();
+    };
+  }, []);
+
+  const validateFile = (file) => {
+    const extension = file?.name.split(".").pop()?.toLowerCase() || "";
+    return SUPPORTED_VIDEO_FORMATS.includes(extension);
+  };
+
+  const handleFileSelection = (file) => {
+    if (!file) return;
+
+    if (!validateFile(file)) {
+      setSelectedFile(null);
+      handleError("Этот формат не поддерживается. Загрузите видео из списка поддерживаемых форматов.");
+      return;
+    }
+
+    setSelectedFile(file);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    setIsDragActive(false);
+    handleFileSelection(event.dataTransfer.files?.[0]);
+  };
+
+  const handleStartTranscription = async () => {
+    if (isProcessing) return;
+
+    if (activeTab === "file" && !selectedFile) {
+      handleError("Сначала выберите видеофайл для обработки.");
+      return;
+    }
+
+    if (activeTab === "link" && !videoLink.trim()) {
+      handleError("Вставьте ссылку на видео перед запуском преобразования.");
+      return;
+    }
+
+    setResultText("");
+    console.log(selectedFile)
+
+
+    try {
+      if (activeTab === "file") {
+        formData.append('SelectedFile', selectedFile);
+        response = await fetch('http://localhost:3001/transcriptions', {
+          method: 'POST',
+          body: formData
+        });
+      }
+
+      if (activeTab === "link") {
+        response = await fetch('http://localhost:3001/transcriptions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: videoLink,
+          }),
+        });
+      }
+
+      setIsProcessing(true);
+
+      if (!response.ok) {
+        console.log('Не удалось завершить обработку');
+        throw new Error("Не удалось завершить обработку")
+      }
+
+      const data = await response.json();
+      const transcription = data.id;
+      setResultText(transcription);
+      if (modalRef.current) {
+        modalRef.current.showModal();
+      }
+    } catch (error) {
+      handleError("Не удалось завершить обработку. Попробуйте снова.");
+      setSelectedFile(null)
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(resultText);
+      setIsCopied(true);
+      const timer = setTimeout(() => setIsCopied(false), 1800);
+      timersRef.current.push(timer);
+    } catch {
+      handleError("Не удалось скопировать текст. Попробуйте снова.");
+    }
+  };
+
+  const handleError = (error) => {
+    setErrorMessage(error);
+    const timer = setTimeout(() => setErrorMessage(""), 3000)
+    timersRef.current.push(timer);
+  }
+
+  const handleDownload = async () => {
+
+    try {
+      const { blob, fileName } = await generateFile(resultText, fileFormat);
+      downloadBlob(blob, fileName);
+    } catch (error) {
+      console.error("Ошибка экспорта:", error);
+      handleError("Не удалось сформировать файл выбранного формата.");
+    }
+  };
+
+  return (
+    <div className="app-root">
+        {errorMessage && !modalRef.current.open && (
+          <p className="error-message">
+            <AlertCircle size={16} />
+            {errorMessage}
+          </p>
+        )}
+
+      <main className="page">
+        <header className="hero">
+          <h1>Преобразовать аудио и видео в текст</h1>
+          <p>
+            Быстро превращайте медиа в аккуратный текст с экспортом в популярные
+            форматы.
+          </p>
+        </header>
+
+        <section className="feature-grid" aria-label="Ключевые возможности">
+          {FEATURE_ITEMS.map(({ icon: Icon, text }) => (
+            <article key={text} className="feature-card">
+              <Icon size={48} />
+              <span>{text}</span>
+            </article>
+          ))}
+        </section>
+
+        <section className="upload-container">
+          <div className="tab-row" role="tablist" aria-label="Источник данных">
+            <button
+              type="button"
+              className={`tab-btn ${activeTab === "file" ? "active" : ""}`}
+              role="tab"
+              aria-selected={activeTab === "file"}
+              onClick={() => {
+                setActiveTab("file");
+                setErrorMessage("");
+              }}
+            >
+              Загрузить файл
+            </button>
+
+            <button
+              type="button"
+              className={`tab-btn ${activeTab === "link" ? "active" : ""}`}
+              role="tab"
+              aria-selected={activeTab === "link"}
+              onClick={() => {
+                setActiveTab("link");
+                setErrorMessage("");
+              }}
+            >
+              Вставить ссылку
+            </button>
+          </div>
+
+          {activeTab === "file" ? (
+            <div
+              className={`dropzone ${isDragActive ? "active" : ""}`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setIsDragActive(true);
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                setIsDragActive(false);
+              }}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <p className="dropzone-title">
+                Перетащите файлы сюда для загрузки
+              </p>
+
+              <div className="or-divider">
+                <span>ИЛИ</span>
+              </div>
+
+              <button
+                type="button"
+                className="upload-file-btn"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload size={16} />
+                Загрузите файл
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".mp4,.mov,.avi,.mkv,.webm"
+                onChange={(event) => handleFileSelection(event.target.files?.[0])}
+              />
+
+              {selectedFile && (
+                <p className="selected-file">
+                  Выбран файл: {selectedFile.name}
+                </p>
+              )}
+
+              <p className="formats-footer">
+                Поддерживаемые видеоформаты: mp4, mov, avi, mkv, webm. <br/>
+                Поддерживаемые аудиоформаты: aac, mka, mp2, mp3, weba, webm, wma
+              </p>
+            </div>
+          ) : (
+            <div className="link-input-container">
+              <label htmlFor="video-link">Ссылка на видео</label>
+              <input
+                id="video-link"
+                type="url"
+                value={videoLink}
+                onChange={(event) => setVideoLink(event.target.value)}
+                placeholder="Вставьте ссылку на видео (https://...)"
+              />
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="process-btn"
+            onClick={handleStartTranscription}
+            disabled={isProcessing}
+          >
+            {isProcessing ? <Loader2 size={17} className="spin" /> : ""}
+            {isProcessing
+              ? "Преобразование..."
+              : "Преобразовать в текст"}
+          </button>
+        </section>
+
+        <dialog 
+          id="result-modal" 
+          ref={modalRef}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              modalRef.current?.close();
+            }
+          }}
+        >
+          <form method="dialog">
+              {errorMessage && modalRef.current.open && (
+                <p className="error-message">
+                  <AlertCircle size={16} />
+                  {errorMessage}
+                </p>
+              )}
+            <section className="dialog-header">
+              <div className="dialog-header-1">
+                <h4 className="dialog-fileName">{selectedFile?.name}</h4>
+                <div>
+                  <p><Calendar size={16} />  {(new Date(Date.now())).toLocaleDateString('ru-RU', {day: 'numeric', month:'long', year:'numeric'})} </p>
+                  <p><FileText size={16} />  {(selectedFile?.size/1024/1024).toFixed(2)}MB</p>
+                </div>
+              </div>
+              <div className="dialog-header-buttons">
+                <div className="export-row">
+                  <label className="format-select">
+                    <span>Формат</span>
+                    <select
+                      value={fileFormat}
+                      onChange={(event) => setFileFormat(event.target.value)}
+                    >
+                      {EXPORT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <button type="button" className="download-btn" onClick={handleDownload}>
+                    <Download size={16} />
+                    Скачать
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="sub-header">
+                <button type="button" onClick={handleCopy} className="sub-header-btn">
+                  {isCopied ? <Check size={16} /> : <Copy size={16} />}
+                  {isCopied ? "Скопировано" : "Копировать"}
+                </button>
+                <button type="button" className="sub-header-btn">
+                  <Edit size={16} />
+                  Редактировать
+                </button>
+            </section>
+
+            <section className="dialog-textarea-section">
+              <textarea readOnly value={resultText}></textarea>
+            </section>
+          </form>
+        </dialog>
+        <h2 className="show-tutorial" onClick={() => setShowTutorial(!showTutorial)}>Как конвертировать видео в текст?</h2>
+        {showTutorial ? (<section className="tutorial-section">
+          <div className="tutorial-container">
+            <div>
+              <h3 className="tutorial-title">Преобразуйте аудио и видео в текст за считанные секунды</h3>
+              <p className="tutorial-text">Загрузите видеофайлы с вашего локального устройства или просто вставьте ссылку на YouTube. Так же есть возможность перетащить нужный файл в отмеченную пунктиром область</p>
+            </div>
+            <img src="https://placehold.co/600x400" alt=""></img>
+          </div>
+          <div className="tutorial-container">
+            <div>
+              <h3 className="tutorial-title">Преобразовать в текст</h3>
+              <p className="tutorial-text">Нажмите 'Преобразовать в текст' и дождитесь завершения процесса. Обычно на транскрипцию файла продолжительностью 1 час уходит менее минуты.</p>
+            </div>
+            <img src="https://placehold.co/600x400" alt=""></img>
+          </div>
+          <div className="tutorial-container">
+            <div>
+              <h3 className="tutorial-title">Преобразуйте аудио и видео в текст за считанные секунды</h3>
+              <p className="tutorial-text">Загрузите видеофайлы с вашего локального устройства или просто вставьте ссылку на YouTube. Так же есть возможность перетащить нужный файл в отмеченную пунктиром область</p>
+            </div>
+            <img src="https://placehold.co/600x400" alt=""></img>
+          </div>
+        </section>) : "" }
+      </main>
+    </div>
+  );
+}
+
+export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const faketext = `Всем привет! Сейчас я расскажу, как сыграть самую красивую мелодию на гитаре. Начнем с правой руки. В правой руке необходимо большим пальцем контролировать нижние струны, четвертую, пятую и шестую. а остальные пальцы указательно будут играть по третьей струне, средний по второй, безымянный по первой. Начнем со второй струны, то есть со среднего пальца. Ставим средний палец на вторую струну, играем по открытой струне, потом добавляем безымянный палец по первой струне и последняя нота, которая нам понадобится, в левой руке. Прижимаем на первой струне второй лад, в правой руке извлекаем безымянным пальцем. 
+
+Это первые три ноты. Еще разочек. Вторая открытая, первая открытая, первая страна, второй лад. В левой руке прижимаю средним пальцем. Далее добавляю на первой струне третий лад. Я беру безымянным пальцем в левой руке. В правой руке необходимо сделать щипок. Я беру шестую страну и первую. Вместе извлекаю эти звуки. Пока они звучат, добавляю третью страну, вторую страну, И возвращаюсь на первую струну второй лад. Соединим этот кусочек. Вторая струна открытая. Первая струна открытая. Первая струна второй лад. Первая струна третий лад вместе с шестой струной. 
+
+Добавляю тихонечко третью струну открытую, вторую струну. И возвращаюсь на первую струну второй лад. Отлично. Это первый эпизод. Советую его отработать. Отлично. Далее нужно подготовить левую руку два лада. Это будет на первой струне третий лад и на второй струне первый лад. Я приготовил левую руку и далее нахожу струны, которые понадобятся мне в правой руке. Это пятая сторона и первая. В моем случае я беру большим пальцем по пятой стороне и начинаю играть, а по первой стороне играю безымянным пальцем. Делаю щипок пятая и первая вместе. Добавляю третью струну. 
+
+И вторую струну. В левой руке уже все готово. И заканчиваем на первой струне. Соединяем. Пятая, первая, третья, вторая, первая. Отлично. Соединим два эпизода. Сначала вторая струна, первая струна, первая струна, второй лад. Готовлю на первой струне третий лад. Щипок вместе. Третья, вторая. Заканчиваю на первой струне второй лад. Готовлю два пальца. В правой руке 5-1. Третья струна, вторая. И заканчиваем первая. И далее мне нужно соединить первую струну, третий лад, плюс четвертая струна. Перемещаю безымянный палец на пятый лад, через лад. Возвращаю на первую струну второй лад указательный палец. 
+
+И заканчиваю открытой струной. Еще разочек. Мы закончили на первой струне третий лад. Я извлекаю два звука вместе. 4-1. Пятый лад. Второй лад на первой струне. Открытая. И далее мне нужно длинным пальцем в средней в левой руке прижать шестая струна третий лад. А на первой стране остается второй лад. Делаю щипок вместе. Пока звучат две струны, я добавляю третью страну, вторую и заканчиваю на первой. Еще разочек. 6-1 вместе. 3-2-1. Потом перемещаю средний палец на пятую страну. Третий лад. Снова делаю щипок. Пятая, первая. Не отпуская средний палец, добавляю безымянный палец на первой струне третий лад. 
+
+Отпускаю первую струну, а средний палец так и держу. И безымянным пальцем беру вторая струна, третий лад. Еще разочек. 5-1 вместе в правой руке, а в левой на первой струне второй лад, на пятой струне третий. Вместе. Третий лад. Отпускаю первую ноль и заканчиваю на второй струне третий лад. Далее делаю заготовочку, оставляю на второй струне третий лад и беру на четвертой струне второй лад. Все остальное происходит в правой руке. Щипок. 5-1, 4, 3, 2 и заканчиваю аккордом ЕМ. Нужно прижать на пятой струне второй лад, на четвертой струне второй лад. Попробуй соединить конец. 
+
+Значит, мы прижимаем, делаем заготовку. Вторая сторона, третий лад. Четвертая сторона, второй лад. Щебок. Пять, один. Четыре. Три. Два. И аккорд Е. Пятая сторона, второй лад. Четвертая сторона, второй лад. И в конце можно добавить такой прием, если кто знает флажолет. Желаю всем удачи! `;

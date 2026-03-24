@@ -1,0 +1,226 @@
+resultText && (
+          <section className="result-card">
+            <h2>Результат транскрибации</h2>
+            <textarea readOnly value={resultText} />
+
+            <div className="export-row">
+              <label className="format-select">
+                <span>Формат экспорта</span>
+                <select
+                  value={fileFormat}
+                  onChange={(event) => setFileFormat(event.target.value)}
+                >
+                  {EXPORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button type="button" className="download-btn" onClick={handleDownload}>
+                <Download size={16} />
+                Скачать файл
+              </button>
+            </div>
+          </section>
+
+
+
+
+.result-card {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.82rem;
+  width: min(100%, 50rem);
+}
+
+.result-card h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.result-card textarea {
+  min-height: 12rem;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid rgba(110, 127, 182, 0.5);
+  background: #121212;
+  color: #e7eeff;
+  font: inherit;
+  line-height: 1.6;
+  padding: 0.8rem;
+}
+
+.result-card textarea:focus {
+  outline: none;
+  border-color: rgba(90, 145, 255, 0.95);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.2);
+}
+
+
+
+
+
+
+
+
+
+Вот такой скрипт:
+const formData = new FormData();
+formData.append('SelectedFile', file);
+
+const response = await fetch('/api/v1/transcribe/file', {
+  method: 'POST',
+  body: formData
+});
+
+Вот такой объект возвращает formData.get('SelectedFile'):
+File { name: "2.mp4", lastModified: 1739287569185, webkitRelativePath: "", size: 41579312, type: "video/mp4" }
+
+В инете написано что сам файл (содержимое видео) не отображается в консоли — там только метаданные о файле (имя, размер, тип). Сами видеоданные хранятся в памяти браузера и будут отправлены на сервер при вызове соответствующих методов.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+dialog {
+  width: min(100%, 60rem);
+  border: none;
+  border-radius: 5px;
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.dialog-header-1 {
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog-header-1 p {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem 0.5rem 0;
+  margin: 0;
+  gap: 0.2rem;
+}
+
+.dialog-header-1 p:first-child {
+  padding-left: 0;
+}
+
+.dialog-header-buttons {
+  display: inline-flex;
+  gap: 1rem;
+}
+
+.dialog-fileName {
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.5rem 0.5rem 0.5rem 0;
+  margin: 0;
+}
+
+.export-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.format-select span {
+  color: var(--text);
+  padding-right: 0.5rem;
+}
+
+.format-select select {
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--dropzone);
+  color: var(--text);
+  font: inherit;
+  padding: 0.62rem 0.68rem;
+}
+
+.download-btn {
+  padding: 0.68rem 1rem;
+  background: var(--button);
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.download-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px var(--box-shadow);
+}
+
+.sub-header {
+  width: 100%;
+  margin: 1rem 0;
+  border-radius: 5px;
+  background: var(--dropzone);
+}
+
+.sub-header-btn {
+  padding: 1rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.sub-header-btn:hover {
+  transform: translateY(-1px);
+}
+
+.dialog-textarea-section {
+  position: relative;
+}
+
+.dialog-textarea-section textarea {
+  min-height: 50vh;
+  width: 100%;
+  resize: none;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--dropzone);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.6;
+  padding: 0.8rem;
+}
